@@ -1,5 +1,3 @@
-DROP TABLE Social_statuses_register;
-GO
 DROP TABLE Branches;
 GO
 DROP TABLE Cards;
@@ -41,14 +39,10 @@ CREATE TABLE Social_statuses
 CREATE TABLE Clients
 (
 	Id INT PRIMARY KEY IDENTITY,
-	Client_name VARCHAR(20) NOT NULL
+	Client_name VARCHAR(20) NOT NULL,
+	Social_statuses_id INT REFERENCES Social_statuses
 );
 
-CREATE TABLE Social_statuses_register
-(
-	Client_id INT REFERENCES Clients(id),
-	Social_status_id INT REFERENCES Social_statuses(Id)
-);
 
 CREATE TABLE Accounts
 (
@@ -79,9 +73,6 @@ ALTER TABLE Accounts
   ADD CONSTRAINT account_unique UNIQUE (Bank_id, Client_id);
 GO
 
-ALTER TABLE Social_statuses_register
-  ADD CONSTRAINT soc_status_unique UNIQUE (Client_id, Social_status_id);
-GO
 
 INSERT INTO Cities 
 VALUES
@@ -103,48 +94,35 @@ GO
 
 INSERT INTO Social_statuses
 VALUES
-('Пенсионер'),
-('Инвалид'),
-('Безработный'),
-('Студент'),
-('Работающий')
+('Pensioner'),
+('Disabled person'),
+('Unemployed'),
+('Student'),
+('Working')
 GO
 
 INSERT INTO Clients
 VALUES
-('Вася'),
-('Петя'),
-('Вова'),
-('Никита'),
-('Миша1'),
-('Степан1'),
-('Миша2'),
-('Степан2')
+('Vasya', 1),
+('Petya', 3),
+('Vova', 2),
+('Nikita', 4),
+('Michael', 2),
+('Stepan',5),
+('Fedor', 5),
+('Vanya', 5)
 
-INSERT INTO Social_statuses_register
-VALUES
-(1, 1),
-(2, 2),
-(3, 3),
-(4, 4),
-(5, 4),
-(6, 4),
-(7, 3),
-(8, 2),
-(6, 2),
-(5, 1),
-(3, 4)
 
 INSERT INTO Branches
 VALUES
-(1,5,'ул. Советская 6'),
-(2,4,'ул. Пушкина 5'),
-(3,3,'ул. Северная 5'),
-(4,2,'ул. Хатаевича 33'),
-(1,1,'ул. Московская 2а'),
-(3,2,'ул. Свиридова 18'),
-(1,4,'ул. Крестьянская 2'),
-(5,1,'Проспект победителей 23')
+(1,5,'Sovetskaya 6'),
+(2,4,'Pushkina 5'),
+(3,3,'Severnaya 4'),
+(4,2,'Hataevicha 33'),
+(1,1,'Moscowskaya 2a'),
+(3,2,'Sviridova 18'),
+(1,4,'Sovetskaya 4'),
+(5,1,'Prospect Pobedi 23')
 GO
 
 INSERT INTO Accounts
@@ -180,9 +158,9 @@ GO
 /*TASK 1*/
 SELECT DISTINCT Bank_name
 FROM Cities
-	JOIN (Branches
+	JOIN Branches
 	JOIN Banks
-		ON Bank_id = Banks.Id)
+		ON Bank_id = Banks.Id
 		ON Cities.Id = City_id
 WHERE Cities.City_name = 'Gomel'
 GO
@@ -193,11 +171,11 @@ SELECT Cards.Id AS [Card Id],
 		 Cards.Balance,
 		 Banks.Bank_name
 FROM Cards
-	JOIN ((Accounts
+	JOIN Accounts
 	JOIN Banks
-		ON Bank_id = Banks.Id)
+		ON Bank_id = Banks.Id
 	JOIN Clients
-		ON Client_id = Clients.Id)
+		ON Client_id = Clients.Id
 		ON Account_id = Accounts.Id
 GO
 
@@ -213,13 +191,11 @@ HAVING SUM(Accounts.Balance) - SUM(Cards.Balance) <> 0
 SELECT Social_statuses.Status_name,
 		 COUNT(Cards.id) AS Cards_count
 FROM Cards
-RIGHT JOIN (Accounts
-RIGHT JOIN (Clients
-RIGHT JOIN (Social_statuses_register
+RIGHT JOIN Accounts
+RIGHT JOIN Clients
 RIGHT JOIN Social_statuses
-	ON Social_statuses_register.Social_status_id = Social_statuses.Id)
-	ON Clients.Id = Social_statuses_register.Client_id)
-	ON Accounts.Client_id = Clients.Id)
+	ON Social_statuses.Id = Social_statuses_id
+	ON Accounts.Client_id = Clients.Id
 	ON Cards.Account_id = Accounts.Id
 GROUP BY  Social_statuses.Status_name 
 GO
@@ -227,13 +203,11 @@ GO
 SELECT Status_name,		 
 	(SELECT COUNT(*)
 	FROM Cards
-	JOIN (Accounts
-	JOIN (Clients
-	JOIN Social_statuses_register
-		ON Clients.Id = Social_statuses_register.Client_id)
-		ON Accounts.Client_id = Clients.Id)
+	JOIN Accounts
+	JOIN Clients
+		ON Accounts.Client_id = Clients.Id
 		ON Cards.Account_id = Accounts.Id
-	WHERE Social_statuses.Id = Social_statuses_register.Social_status_id) AS Cards_count
+	WHERE Social_statuses.Id = Social_statuses_id) AS Cards_count
 FROM Social_statuses
 GO
 
@@ -248,23 +222,19 @@ IF @id NOT IN
 	IF NOT EXISTS
 	(SELECT *
 	FROM Clients
-	JOIN Social_statuses_register
-		ON Clients.Id = Social_statuses_register.Client_id
-	WHERE @id = Social_statuses_register.Social_status_id) 
+	WHERE @id = Social_statuses_id) 
 		THROW 51000, 'No account has this social status!', 1;
 UPDATE Accounts SET Balance = Balance + 10
 WHERE Client_id IN 
 	(SELECT Clients.Id
 	FROM Clients
-	JOIN Social_statuses_register
-		ON Clients.Id = Social_statuses_register.Client_id
-	WHERE Social_statuses_register.Social_status_id = @id) 
+	WHERE Social_statuses_id = @id) 
 END;
 
 GO
 SELECT * FROM Accounts
 GO
-EXEC AddBalance 4
+EXEC AddBalance 3
 GO
 SELECT * FROM Accounts
 GO
@@ -273,11 +243,11 @@ GO
 SELECT Clients.Id,
 		 SUM(Accounts.Balance) - SUM(Cards.Balance) AS Available_funds
 FROM Clients
-JOIN ((Accounts
+JOIN Accounts
 JOIN Cards
-	ON Accounts.Id = Cards.Account_id)
+	ON Accounts.Id = Cards.Account_id
 JOIN Banks
-	ON Accounts.Bank_id = Banks.Id)
+	ON Accounts.Bank_id = Banks.Id
 	ON Clients.Id = Accounts.Client_id
 GROUP BY  Clients.Id
 GO
